@@ -33,7 +33,9 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #FDFBF5;
+            background: radial-gradient(1200px 600px at 10% -10%, #fff8ea, transparent),
+                        radial-gradient(1200px 600px at 110% 10%, #f7efe0, transparent),
+                        #FDFBF5;
             color: #383733;
         }
         .nav-button {
@@ -61,13 +63,19 @@
             background-color: #FFFFFF;
             border: 1px solid #F0EAD2;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.05);
         }
         .progress-bar-bg {
             background-color: #E9D8A6;
         }
         .progress-bar-fill {
-            background-color: #D4A373;
-            transition: width 0.5s ease-in-out;
+            background: linear-gradient(90deg, #D4A373, #E9C46A);
+            transition: width 0.6s ease, background-position 0.6s ease;
+            background-size: 200% 100%;
         }
         .timeline-item::before {
             content: '';
@@ -167,6 +175,15 @@
             max-width: 400px;
             text-align: center;
         }
+
+        /* Subtle entrance animation */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-section { animation: fadeInUp 0.35s ease; }
+        .modal.show { display: flex; }
+        .modal.show .modal-content { animation: fadeInUp 0.25s ease; }
     </style>
 </head>
 <body class="antialiased">
@@ -498,6 +515,7 @@
 
         let charts = {};
         let db, auth, userId;
+        let appId = 'default-app-id';
         
         // Games & Drawing
         const snakeCanvas = document.getElementById('snakeCanvas');
@@ -521,10 +539,10 @@
 
         function showModal(message) {
             modalMessage.textContent = message;
-            modal.style.display = 'flex';
+            modal.classList.add('show');
         }
         modalOkBtn.addEventListener('click', () => {
-            modal.style.display = 'none';
+            modal.classList.remove('show');
         });
 
         // Data Storage
@@ -607,6 +625,7 @@
         function switchSection(sectionId) {
             Object.values(sections).forEach(section => section.classList.add('hidden'));
             sections[sectionId].classList.remove('hidden');
+            sections[sectionId].classList.add('animate-section');
 
             navButtons.forEach(button => {
                 button.classList.toggle('active', button.dataset.section === sectionId);
@@ -766,7 +785,7 @@
                 return;
             }
             try {
-                const goalsCollection = collection(db, `artifacts/${__app_id}/users/${userId}/languageGoals`);
+                const goalsCollection = collection(db, `artifacts/${appId}/users/${userId}/languageGoals`);
                 await addDoc(goalsCollection, {
                     language: language,
                     goal: goalText,
@@ -779,9 +798,12 @@
         }
         
         function updateGoalHistory(language) {
-            if (!userId) return;
             const historyList = document.getElementById('language-goal-history');
-            const goalsCollection = collection(db, `artifacts/${__app_id}/users/${userId}/languageGoals`);
+            if (!db || !userId) {
+                historyList.innerHTML = `<li class="text-[#A09B8C]">История целей недоступна офлайн.</li>`;
+                return;
+            }
+            const goalsCollection = collection(db, `artifacts/${appId}/users/${userId}/languageGoals`);
             const q = query(goalsCollection, orderBy("timestamp"));
             
             onSnapshot(q, (querySnapshot) => {
@@ -978,12 +1000,12 @@
         achievementForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const achievementText = achievementInput.value.trim();
-            if (achievementText === '' || !userId) {
+            if (achievementText === '' || !userId || !db) {
                 return;
             }
 
             try {
-                const achievementsCollection = collection(db, `artifacts/${__app_id}/users/${userId}/achievements`);
+                const achievementsCollection = collection(db, `artifacts/${appId}/users/${userId}/achievements`);
                 await addDoc(achievementsCollection, {
                     text: achievementText,
                     timestamp: serverTimestamp()
@@ -1089,55 +1111,58 @@
         }
 
         window.addEventListener('load', async () => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = JSON.parse(__firebase_config);
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) ? JSON.parse(__firebase_config) : null;
             const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-            const app = window.initializeApp(firebaseConfig);
-            db = window.getFirestore(app);
-            auth = window.getAuth(app);
-            
-            try {
-                if (initialAuthToken) {
-                    await window.signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await window.signInAnonymously(auth);
+            if (firebaseConfig) {
+                const app = window.initializeApp(firebaseConfig);
+                db = window.getFirestore(app);
+                auth = window.getAuth(app);
+                try {
+                    if (initialAuthToken) {
+                        await window.signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await window.signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Firebase auth error:", error);
                 }
-            } catch (error) {
-                console.error("Firebase auth error:", error);
-            }
 
-            window.onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    document.getElementById('user-id-display').textContent = `ID пользователя: ${userId}`;
-                    const achievementsCollection = collection(db, `artifacts/${appId}/users/${userId}/achievements`);
-                    const q = query(achievementsCollection, orderBy("timestamp", "desc"));
+                window.onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-id-display').textContent = `ID пользователя: ${userId}`;
+                        const achievementsCollection = collection(db, `artifacts/${appId}/users/${userId}/achievements`);
+                        const q = query(achievementsCollection, orderBy("timestamp", "desc"));
 
-                    onSnapshot(q, (querySnapshot) => {
-                        achievementsList.innerHTML = '';
-                        if (querySnapshot.empty) {
-                            achievementsList.innerHTML = `<p class="text-[#A09B8C]">У вас еще нет достижений. Добавьте первое!</p>`;
-                        } else {
-                            querySnapshot.forEach((doc) => {
-                                const data = doc.data();
-                                const date = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleDateString('ru-RU') : 'Сегодня';
-                                achievementsList.innerHTML += `
-                                    <div class="flex space-x-2">
-                                        <div class="flex-shrink-0 h-4 w-4 text-[#D4A373] text-center">🏆</div>
-                                        <div>
-                                            <p>${data.text}</p>
-                                            <p class="text-xs text-[#A09B8C]">${date}</p>
+                        onSnapshot(q, (querySnapshot) => {
+                            achievementsList.innerHTML = '';
+                            if (querySnapshot.empty) {
+                                achievementsList.innerHTML = `<p class="text-[#A09B8C]">У вас еще нет достижений. Добавьте первое!</p>`;
+                            } else {
+                                querySnapshot.forEach((doc) => {
+                                    const data = doc.data();
+                                    const date = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleDateString('ru-RU') : 'Сегодня';
+                                    achievementsList.innerHTML += `
+                                        <div class="flex space-x-2">
+                                            <div class="flex-shrink-0 h-4 w-4 text-[#D4A373] text-center">🏆</div>
+                                            <div>
+                                                <p>${data.text}</p>
+                                                <p class="text-xs text-[#A09B8C]">${date}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                `;
-                            });
-                        }
-                    });
-                } else {
-                    console.error("User is not signed in.");
-                }
-            });
+                                    `;
+                                });
+                            }
+                        });
+                    } else {
+                        console.error("User is not signed in.");
+                    }
+                });
+            } else {
+                achievementsList.innerHTML = `<p class="text-[#A09B8C]">Оффлайн режим: подключите Firebase, чтобы сохранять достижения.</p>`;
+            }
 
             switchSection('main');
             renderEgeContent('history');
