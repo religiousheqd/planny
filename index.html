@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивный План: От ЕГЭ до Франции</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        window.initializeApp = initializeApp;
+        window.getAuth = getAuth;
+        window.signInAnonymously = signInAnonymously;
+        window.signInWithCustomToken = signInWithCustomToken;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.getFirestore = getFirestore;
+        window.collection = collection;
+        window.addDoc = addDoc;
+        window.onSnapshot = onSnapshot;
+        window.orderBy = orderBy;
+        window.query = query;
+        window.serverTimestamp = serverTimestamp;
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Chosen Palette: Calm Harmony -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF5;
+            color: #383733;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-button.active {
+            border-bottom-color: #D4A373;
+            color: #D4A373;
+        }
+        .nav-button:hover {
+            border-bottom-color: #E9C46A;
+        }
+        .sub-nav-button {
+            transition: all 0.3s ease;
+        }
+        .sub-nav-button.active {
+            background-color: #D4A373;
+            color: #FFFFFF;
+        }
+        .sub-nav-button:hover:not(.active) {
+            background-color: #E9D8A6;
+        }
+        .card {
+            background-color: #FFFFFF;
+            border: 1px solid #F0EAD2;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+        }
+        .progress-bar-bg {
+            background-color: #E9D8A6;
+        }
+        .progress-bar-fill {
+            background-color: #D4A373;
+            transition: width 0.5s ease-in-out;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 11px;
+            top: 28px;
+            bottom: -28px;
+            width: 2px;
+            background-color: #E9D8A6;
+        }
+        .timeline-item:last-child::before {
+            display: none;
+        }
+        .timeline-dot {
+            border: 2px solid #D4A373;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .game-canvas {
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            background-color: #f8fafc;
+        }
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background-color: #f1f5f9;
+            border-radius: 0.75rem;
+        }
+        .drawing-canvas {
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            background-color: #f8fafc;
+        }
+        .goal-chain {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            position: relative;
+        }
+        .goal-chain li {
+            position: relative;
+            padding-left: 25px;
+            margin-bottom: 15px;
+        }
+        .goal-chain li:before {
+            content: '✅';
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+        .goal-chain li:not(:last-child):after {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 20px;
+            bottom: -15px;
+            width: 2px;
+            background-color: #E9D8A6;
+        }
+        .goal-input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div class="min-h-screen container mx-auto px-4 py-8">
+        <header class="text-center mb-4">
+            <h1 class="text-4xl font-bold text-[#6F6B5E]">Интерактивный План</h1>
+            <p class="text-lg text-[#A09B8C] mt-2">От ЕГЭ до мечты об учебе во Франции</p>
+        </header>
+
+        <div class="card p-4 rounded-lg mb-8">
+            <h3 class="text-xl font-semibold mb-2 text-[#6F6B5E] text-center">Общий Прогресс</h3>
+            <div class="progress-bar-bg w-full h-8 rounded-full">
+                <div id="overall-progress-bar" class="progress-bar-fill h-8 rounded-full text-sm text-white text-center flex items-center justify-center font-bold" style="width: 0%">0%</div>
+            </div>
+        </div>
+
+        <nav class="flex justify-center space-x-4 md:space-x-8 mb-8 border-b border-[#F0EAD2] pb-2">
+            <button class="nav-button active" data-section="main">Главная</button>
+            <button class="nav-button" data-section="about-me">Обо мне</button>
+            <button class="nav-button" data-section="ege">План ЕГЭ</button>
+            <button class="nav-button" data-section="languages">План по Языкам</button>
+            <button class="nav-button" data-section="france">Поступление во Францию</button>
+        </nav>
+
+        <main>
+            <!-- Main Dashboard Section -->
+            <section id="main-section" class="space-y-8">
+                <div class="card p-6 rounded-lg">
+                    <h2 class="text-2xl font-semibold mb-4 text-[#6F6B5E]">Добро пожаловать, Яна!</h2>
+                    <p class="text-[#383733]">Этот дашборд — ваша отправная точка. Здесь собрана ключевая информация о ваших целях и прогрессе. Используйте его для мотивации и планирования. Помните, что каждая большая цель состоит из маленьких, но уверенных шагов. У вас все получится!</p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="card p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Ваш Путь: Ключевые Этапы</h3>
+                        <div class="relative">
+                            <div class="timeline-item relative pb-8 pl-8">
+                                <div class="timeline-dot absolute left-0 top-1 h-6 w-6 rounded-full bg-[#FDFBF5]"></div>
+                                <h4 class="font-semibold">Старт подготовки</h4>
+                                <p class="text-sm text-[#A09B8C]">Сентябрь 2024</p>
+                                <p class="mt-1">Глубокое погружение в предметы ЕГЭ и языки.</p>
+                            </div>
+                            <div class="timeline-item relative pb-8 pl-8">
+                                <div class="timeline-dot absolute left-0 top-1 h-6 w-6 rounded-full bg-[#FDFBF5]"></div>
+                                <h4 class="font-semibold">Сдача ЕГЭ</h4>
+                                <p class="text-sm text-[#A09B8C]">Июнь 2025</p>
+                                <p class="mt-1">Успешное прохождение всех пяти экзаменов.</p>
+                            </div>
+                            <div class="timeline-item relative pb-8 pl-8">
+                                <div class="timeline-dot absolute left-0 top-1 h-6 w-6 rounded-full bg-[#FDFBF5]"></div>
+                                <h4 class="font-semibold">Экзамен DELF B2</h4>
+                                <p class="text-sm text-[#A09B8C]">Осень 2025</p>
+                                <p class="mt-1">Подтверждение уровня французского для вуза.</p>
+                            </div>
+                            <div class="timeline-item relative pl-8">
+                                <div class="timeline-dot absolute left-0 top-1 h-6 w-6 rounded-full bg-[#FDFBF5]"></div>
+                                <h4 class="font-semibold">Поступление во Францию</h4>
+                                <p class="text-sm text-[#A09B8C]">Зима 2025 - Весна 2026</p>
+                                <p class="mt-1">Подача документов через Campus France и ожидание результатов.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Примерное распределение времени</h3>
+                         <p class="text-sm text-[#A09B8C] mb-4">Это визуализация приоритетов. Французский и профильные предметы ЕГЭ требуют больше всего внимания.</p>
+                        <div class="chart-container">
+                            <canvas id="time-distribution-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="card p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Ваши Достижения</h3>
+                        <p class="text-sm text-[#A09B8C] mb-4">Запишите сюда любой свой успех, чтобы ничего не забыть!</p>
+                        <form id="achievement-form" class="flex flex-col md:flex-row gap-2 mb-4">
+                            <input id="achievement-input" type="text" placeholder="Например: 'Сдал пробник по истории на 80 баллов!'" class="flex-grow p-2 rounded-md border border-[#F0EAD2] bg-[#FDFBF5] placeholder:text-[#A09B8C]">
+                            <button type="submit" class="bg-[#D4A373] text-white p-2 rounded-md font-semibold hover:bg-[#c08d5c] transition-colors">Добавить</button>
+                        </form>
+                        <div id="achievements-list" class="space-y-2 text-sm">
+                            <p class="text-[#A09B8C]">Загрузка достижений...</p>
+                        </div>
+                    </div>
+                    <div class="card p-6 rounded-lg flex flex-col items-center">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Сегодняшний день</h3>
+                        <p id="local-time" class="text-4xl font-bold text-[#6F6B5E] mb-4"></p>
+                        <p id="user-id-display" class="text-xs text-[#A09B8C] mb-4 break-all"></p>
+                        <div class="w-full">
+                            <div class="flex justify-between items-center mb-2 text-[#6F6B5E]">
+                                <span id="calendar-month-year"></span>
+                            </div>
+                            <div class="grid grid-cols-7 text-center text-sm font-medium text-[#A09B8C] mb-2">
+                                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+                            </div>
+                            <div id="calendar-grid" class="grid grid-cols-7 text-center text-[#383733] text-sm"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section "Обо мне" -->
+            <section id="about-me-section" class="hidden space-y-8">
+                <div class="card p-6 rounded-lg">
+                    <h2 class="text-2xl font-semibold mb-4 text-[#6F6B5E]">Привет, Яна!</h2>
+                    <p class="text-[#383733]">Это твой личный манифест. Твои особенности — это не препятствия, а суперсилы. Используй их для достижения своих целей. А когда нужно отвлечься, здесь есть игры для отдыха. Наслаждайся!</p>
+                </div>
+                
+                <!-- NEW: User Info Card -->
+                <div class="card p-6 rounded-lg space-y-6">
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2 text-[#6F6B5E]">Кратко обо мне</h3>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="font-medium text-[#6F6B5E]">Возраст:</p>
+                                <p class="text-[#383733]">17 лет (скоро ЕГЭ!)</p>
+                            </div>
+                            <div>
+                                <p class="font-medium text-[#6F6B5E]">Мои интересы:</p>
+                                <p class="text-[#383733]">Изучение языков, рисование, видеоигры, история Франции, дорамы.</p>
+                            </div>
+                            <div>
+                                <p class="font-medium text-[#6F6B5E]">Мои цели:</p>
+                                <p class="text-[#383733]">Успешно сдать ЕГЭ, получить сертификат DELF B2 и поступить в университет во Франции. Сделать свой мозг "ультра английским" и наслаждаться медиа на корейском, норвежском и украинском.</p>
+                            </div>
+                             <div>
+                                <p class="font-medium text-[#6F6B5E]">Мои планы:</p>
+                                <p class="text-[#383733]">Подготовка к ЕГЭ по истории, обществознанию, русскому и английскому, изучение французского, норвежского, корейского и украинского.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="border-[#F0EAD2]">
+                    <div>
+                        <h3 class="text-xl font-semibold mb-2 text-[#6F6B5E]">Особенности моего мозга</h3>
+                        <div class="space-y-4 text-[#383733]">
+                             <p>
+                                У меня **аутизм и СДВГ**. Это значит, что я могу очень глубоко погружаться в интересные мне темы и видеть неочевидные связи. Мне комфортно работать с большими, **детальными разборами**, потому что это помогает мне полностью погрузиться в тему и построить чёткую структуру в голове.
+                            </p>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-medium text-[#6F6B5E]">Зрительная память:</h4>
+                                    <p class="text-sm">
+                                        Я хорошо запоминаю карты, лица и даже иероглифы. Это мой главный помощник в изучении истории и, конечно, корейского языка!
+                                    </p>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-[#6F6B5E]">Причинно-следственные связи:</h4>
+                                    <p class="text-sm">
+                                        Вместо заучивания, я ищу и запоминаю **логику** и **структуру** правил, например, в грамматике норвежского. Это делает обучение простым и интуитивным.
+                                    </p>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-[#6F6B5E]">Слуховая память:</h4>
+                                    <p class="text-sm">
+                                        Я очень хорошо запоминаю речь на слух. Мне легко **составлять предложения из услышанных слов**, что помогает в изучении языков и живом общении.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="card p-6 rounded-lg game-container">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Змейка</h3>
+                        <canvas id="snakeCanvas" width="300" height="300" class="game-canvas"></canvas>
+                        <button id="snakeStartBtn" class="bg-[#D4A373] hover:bg-[#c08d5c] text-white font-bold py-2 px-4 rounded-full transition-all duration-300">Начать игру</button>
+                        <div id="snakeScore" class="text-lg font-medium text-gray-700">Очки: 0</div>
+                    </div>
+                    <div class="card p-6 rounded-lg game-container">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Блокнот для рисования</h3>
+                        <canvas id="drawingCanvas" width="300" height="300" class="drawing-canvas"></canvas>
+                        <div class="flex space-x-2 mt-4">
+                            <button class="color-btn bg-black w-6 h-6 rounded-full border-2 border-gray-400 cursor-pointer" data-color="black"></button>
+                            <button class="color-btn bg-red-500 w-6 h-6 rounded-full border-2 border-gray-400 cursor-pointer" data-color="red"></button>
+                            <button class="color-btn bg-blue-500 w-6 h-6 rounded-full border-2 border-gray-400 cursor-pointer" data-color="blue"></button>
+                            <button id="clearBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1 px-3 text-sm rounded-full transition-all duration-300">Очистить</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- EGE Section -->
+            <section id="ege-section" class="hidden space-y-8">
+                 <div class="card p-6 rounded-lg">
+                    <h2 class="text-2xl font-semibold mb-2 text-[#6F6B5E]">Подготовка к ЕГЭ</h2>
+                    <p class="text-[#383733]">Здесь вы можете отслеживать свой прогресс по каждому предмету. Выберите предмет, чтобы увидеть список тем из кодификатора и рекомендованные ресурсы. Отмечайте пройденные темы, чтобы видеть, как заполняется ваш прогресс-бар. Это поможет визуализировать ваш путь и сохранять мотивацию.</p>
+                </div>
+                <div class="flex justify-center flex-wrap gap-2 mb-8">
+                    <button class="sub-nav-button active py-2 px-4 rounded-md text-sm font-medium" data-content="history">История</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="social">Обществознание</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="english-ege">Английский</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="math">Математика (база)</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="russian">Русский язык</button>
+                </div>
+                <div id="ege-content-area" class="card p-6 rounded-lg"></div>
+            </section>
+
+            <!-- Languages Section -->
+            <section id="languages-section" class="hidden space-y-8">
+                 <div class="card p-6 rounded-lg">
+                    <h2 class="text-2xl font-semibold mb-2 text-[#6F6B5E]">Изучение Языков</h2>
+                    <p class="text-[#383733]">Ваше многоязычное путешествие начинается здесь. Выберите язык, чтобы увидеть ваши цели, рекомендованные ресурсы и визуализацию текущих навыков. Радар-чарт поможет понять, какие аспекты (чтение, письмо, говорение, аудирование) требуют большего внимания.</p>
+                </div>
+                <div class="flex justify-center flex-wrap gap-2 mb-8">
+                    <button class="sub-nav-button active py-2 px-4 rounded-md text-sm font-medium" data-content="french">Французский</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="english-lang">Английский</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="norwegian">Норвежский</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="korean">Корейский</button>
+                    <button class="sub-nav-button py-2 px-4 rounded-md text-sm font-medium" data-content="ukrainian">Украинский</button>
+                </div>
+                <div id="languages-content-area" class="card p-6 rounded-lg"></div>
+            </section>
+
+            <!-- France Section -->
+            <section id="france-section" class="hidden space-y-8">
+                 <div class="card p-6 rounded-lg">
+                    <h2 class="text-2xl font-semibold mb-2 text-[#6F6B5E]">Поступление во Францию</h2>
+                    <p class="text-[#383733]">Это ваша самая большая мечта! Поступление — это долгий путь, но с правильным планом он становится вполне реальным. Уделите особое внимание поиску стипендий и детальному заполнению досье, чтобы ничего не упустить.</p>
+                </div>
+                
+                <div class="grid lg:grid-cols-2 gap-8">
+                    <div class="card p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Процесс Поступления: Шаг за Шагом</h3>
+                        <div class="space-y-4">
+                            <!-- Шаг 1 -->
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-[#E9D8A6] text-[#6F6B5E] flex items-center justify-center font-bold text-lg">1</div>
+                                <div class="ml-4">
+                                    <h4 class="font-semibold">Общие требования и подготовка</h4>
+                                    <p class="text-sm">Изучите требования к аттестату и сертификатам языковых экзаменов (DELF B2, IELTS/TOEFL). Составьте список необходимых документов.</p>
+                                </div>
+                            </div>
+                             <div class="h-8 w-px bg-[#E9D8A6] ml-5"></div>
+                            <!-- Шаг 2 -->
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-[#E9D8A6] text-[#6F6B5E] flex items-center justify-center font-bold text-lg">2</div>
+                                <div class="ml-4">
+                                    <h4 class="font-semibold">Выбор университета и программы</h4>
+                                    <p class="text-sm">Определитесь с вузом (Universités или Grandes Écoles) и специальностью. Изучите их программы и рейтинги. Используйте ресурсы, такие как Campus France и их каталог программ.</p>
+                                </div>
+                            </div>
+                             <div class="h-8 w-px bg-[#E9D8A6] ml-5"></div>
+                            <!-- Шаг 3 -->
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-[#E9D8A6] text-[#6F6B5E] flex items-center justify-center font-bold text-lg">3</div>
+                                <div class="ml-4">
+                                    <h4 class="font-semibold">Создание досье через Etudes en France</h4>
+                                    <p class="text-sm">Платформа Etudes en France — ваш основной инструмент. Заполните личную информацию, напишите мотивационное письмо, загрузите аттестат, резюме и сертификаты. Уделите особое внимание написанию мотивационного письма и выбору до 7 программ.</p>
+                                </div>
+                            </div>
+                            <div class="h-8 w-px bg-[#E9D8A6] ml-5"></div>
+                            <!-- Шаг 4 -->
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-[#E9D8A6] text-[#6F6B5E] flex items-center justify-center font-bold text-lg">4</div>
+                                <div class="ml-4">
+                                    <h4 class="font-semibold">Собеседование и виза</h4>
+                                    <p class="text-sm">Пройдите собеседование в Campus France, которое является обязательным этапом. После получения положительного ответа от вуза, подайте документы на студенческую визу во Французский визовый центр.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card p-6 rounded-lg">
+                        <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">Дополнительные ресурсы и информация</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="font-semibold mb-1">Стипендии</h4>
+                                <p class="text-sm text-[#A09B8C]">Изучите возможности получения финансовой помощи:</p>
+                                <ul class="list-disc list-inside space-y-1 text-sm mt-2">
+                                    <li>Стипендия <span class="font-semibold">Eiffel</span> (для магистров и аспирантов)</li>
+                                    <li>Стипендии от Французского посольства</li>
+                                    <li>Стипендии от самих университетов</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold mb-1">Языковые экзамены</h4>
+                                <p class="text-sm text-[#A09B8C]">Для поступления чаще всего требуется уровень B2. C1 может понадобиться для магистратуры.</p>
+                                <ul class="list-disc list-inside space-y-1 text-sm mt-2">
+                                    <li>DELF B2: Подтверждает свободное владение, достаточно для большинства бакалавриата.</li>
+                                    <li>DALF C1: Для тех, кто хочет учиться на более высоком уровне.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold mb-1">Важные сроки</h4>
+                                <p class="text-sm text-[#A09B8C]">Крайне важно не пропустить дедлайны!</p>
+                                <ul class="list-disc list-inside space-y-1 text-sm mt-2">
+                                    <li>Подача досье в Etudes en France: Обычно с ноября по март.</li>
+                                    <li>Собеседование: Весна.</li>
+                                    <li>Ответы от вузов: С апреля по июнь.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+         <!-- Custom Alert Modal -->
+         <div id="custom-modal" class="modal">
+            <div class="modal-content">
+                <p id="modal-message" class="text-lg mb-4"></p>
+                <button id="modal-ok-btn" class="bg-[#D4A373] text-white px-6 py-2 rounded-md font-semibold">ОК</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        const sections = {
+            main: document.getElementById('main-section'),
+            'about-me': document.getElementById('about-me-section'),
+            ege: document.getElementById('ege-section'),
+            languages: document.getElementById('languages-section'),
+            france: document.getElementById('france-section'),
+        };
+
+        const navButtons = document.querySelectorAll('.nav-button');
+
+        const egeContentArea = document.getElementById('ege-content-area');
+        const egeNavButtons = document.querySelectorAll('#ege-section .sub-nav-button');
+        
+        const languagesContentArea = document.getElementById('languages-content-area');
+        const languagesNavButtons = document.querySelectorAll('#languages-section .sub-nav-button');
+
+        const overallProgressBar = document.getElementById('overall-progress-bar');
+        const achievementForm = document.getElementById('achievement-form');
+        const achievementInput = document.getElementById('achievement-input');
+        const achievementsList = document.getElementById('achievements-list');
+
+        let charts = {};
+        let db, auth, userId;
+        
+        // Games & Drawing
+        const snakeCanvas = document.getElementById('snakeCanvas');
+        const snakeCtx = snakeCanvas.getContext('2d');
+        const snakeStartBtn = document.getElementById('snakeStartBtn');
+        const snakeScoreEl = document.getElementById('snakeScore');
+        let snake, food, score, direction, gameInterval, isSnakePlaying;
+
+        const drawingCanvas = document.getElementById('drawingCanvas');
+        const drawingCtx = drawingCanvas.getContext('2d');
+        const colorButtons = document.querySelectorAll('.color-btn');
+        const clearBtn = document.getElementById('clearBtn');
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // Custom Modal
+        const modal = document.getElementById('custom-modal');
+        const modalMessage = document.getElementById('modal-message');
+        const modalOkBtn = document.getElementById('modal-ok-btn');
+
+        function showModal(message) {
+            modalMessage.textContent = message;
+            modal.style.display = 'flex';
+        }
+        modalOkBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        // Data Storage
+        let egeData = {
+            history: {
+                title: 'История',
+                progress: 10,
+                topics: ['Древняя Русь (IX-XII вв.)', 'Политическая раздробленность', 'Образование единого государства', 'Россия в XVI-XVII вв.', 'Эпоха Петра I', 'Дворцовые перевороты', 'Российская империя в XIX в.', 'Революции и Гражданская война', 'СССР в 1920-1930-е гг.', 'Великая Отечественная война', 'Послевоенный СССР', 'Современная Россия'],
+                resources: 'Учебники Торкунова, Сахарова; Сборники Артасова; "Интерактивный учебник" Фоксфорда.'
+            },
+            social: {
+                title: 'Обществознание',
+                progress: 5,
+                topics: ['Человек и общество', 'Духовная культура', 'Экономика', 'Социальные отношения', 'Политика', 'Право'],
+                resources: 'Сборники Котовой и Лисковой; "Модульный триактив-курс"; YouTube-канал Умскул.'
+            },
+            'english-ege': {
+                title: 'Английский язык (ЕГЭ)',
+                progress: 30,
+                topics: ['Аудирование', 'Чтение', 'Грамматика и лексика', 'Письмо (личное письмо, эссе)', 'Говорение'],
+                resources: 'Сборники Вербицкой; "Destination Grammar"; Курсы ЕГЭLAND, Умскул.'
+            },
+            math: {
+                title: 'Математика (базовый уровень)',
+                progress: 5,
+                topics: ['Арифметика', 'Алгебраические выражения', 'Уравнения и неравенства', 'Функции и графики', 'Начала анализа', 'Геометрия (планиметрия, стереометрия)', 'Текстовые задачи'],
+                resources: 'Сборники Ященко; Приложение Photomath; Курсы Школково.'
+            },
+            russian: {
+                title: 'Русский язык',
+                progress: 10,
+                topics: ['Орфография', 'Пунктуация', 'Грамматика', 'Культура речи', 'Работа с текстом', 'Сочинение (Задание 27)'],
+                resources: 'Сборники Цыбулько; Портал "Грамота.ру"; YouTube-канал Умскул.'
+            }
+        };
+
+        let languagesData = {
+            french: {
+                title: 'Французский',
+                goal: 'B2/C1 (Поступление в вуз)',
+                progress: 0,
+                notes: 'Хочу учиться во Франции, так что французский — моя главная цель. Увлекаюсь историей Франции (Наполеон!). Этот язык поможет мне не только в учебе, но и в погружении в культуру.',
+                skills: { 'Чтение': 0, 'Письмо': 0, 'Говорение': 0, 'Аудирование': 0, 'Грамматика': 0 },
+                resources: 'Онлайн-школы: CREF, Simple Français. Учебники: "Réussir le DELF". Практика: RFI, TV5monde.'
+            },
+            'english-lang': {
+                title: 'Английский',
+                goal: 'С1 (Ультра английский мозг)',
+                progress: 65,
+                notes: 'Моя цель — свободно смотреть медиа, читать книги и общаться, чтобы мой мозг стал "ультра английским".',
+                skills: { 'Чтение': 60, 'Письмо': 55, 'Говорение': 65, 'Аудирование': 75, 'Грамматика': 60 },
+                resources: 'Учебники: "Prepare Second Edition", "Destination B2/C1". Практика: BBC, Netflix, книги в оригинале.'
+            },
+            norwegian: {
+                title: 'Норвежский',
+                goal: 'А1/А2 (Для себя)',
+                progress: 20,
+                notes: 'Этот язык даётся мне легко, и он очень важен для меня лично. Хочу понимать медиа и общаться.',
+                skills: { 'Чтение': 20, 'Письмо': 10, 'Говорение': 15, 'Аудирование': 25, 'Грамматика': 20 },
+                resources: 'Онлайн-курсы: Lovra Academy, Polyglot Skola. Учебник: "På vei".'
+            },
+            korean: {
+                title: 'Корейский',
+                goal: 'А2 (Медиа и письмо)',
+                progress: 0,
+                notes: 'Хочу понимать дорамы и другой медиа-контент. Моя зрительная память должна помочь с иероглифами. Мне не так важно общаться, как понимать и писать.',
+                skills: { 'Чтение': 0, 'Письмо': 0, 'Говорение': 0, 'Аудирование': 0, 'Грамматика': 0 },
+                resources: 'Учебники: "Korean From Zero!", "Korean grammar in Use", учебник Касаткиной.'
+            },
+            ukrainian: {
+                title: 'Украинский',
+                goal: 'А2 (Общение с друзьями)',
+                progress: 10,
+                notes: 'Мои друзья и парень говорят на украинском. Хочу понимать медиа, свободно общаться и иметь возможность похвастаться своими навыками.',
+                skills: { 'Чтение': 10, 'Письмо': 5, 'Говорение': 15, 'Аудирование': 15, 'Грамматика': 10 },
+                resources: 'Онлайн-ресурсы: Duolingo, Prometheus, "Язык — ДНК нации".'
+            }
+        };
+
+        function switchSection(sectionId) {
+            Object.values(sections).forEach(section => section.classList.add('hidden'));
+            sections[sectionId].classList.remove('hidden');
+
+            navButtons.forEach(button => {
+                button.classList.toggle('active', button.dataset.section === sectionId);
+            });
+        }
+
+        function calculateOverallProgress() {
+            const totalEgeProgress = Object.values(egeData).reduce((sum, subject) => sum + subject.progress, 0);
+            const totalLanguageProgress = Object.values(languagesData).reduce((sum, lang) => sum + lang.progress, 0);
+            
+            const totalItems = Object.values(egeData).length + Object.values(languagesData).length;
+            const overallProgress = totalItems > 0 ? (totalEgeProgress + totalLanguageProgress) / totalItems : 0;
+            
+            const roundedProgress = Math.round(overallProgress);
+            overallProgressBar.style.width = `${roundedProgress}%`;
+            overallProgressBar.textContent = `${roundedProgress}%`;
+        }
+
+        function renderEgeContent(subject) {
+            const data = egeData[subject];
+            let topicsHtml = data.topics.map((topic, index) => `
+                <label class="flex items-center space-x-3 p-2 rounded-md hover:bg-[#FDFBF5]">
+                    <input type="checkbox" class="form-checkbox h-5 w-5 text-[#D4A373] rounded border-[#A09B8C] focus:ring-[#D4A373]" data-subject="${subject}" data-topic-index="${index}" ${index < (data.progress / (100/data.topics.length)) ? 'checked' : ''}>
+                    <span class="text-[#383733]">${topic}</span>
+                </label>
+            `).join('');
+
+            egeContentArea.innerHTML = `
+                <h3 class="text-xl font-semibold mb-4 text-[#6F6B5E]">${data.title}</h3>
+                <div class="mb-4">
+                    <div class="progress-bar-bg w-full h-4 rounded-full">
+                        <div id="progress-bar-${subject}" class="progress-bar-fill h-4 rounded-full text-xs text-white text-center flex items-center justify-center" style="width: ${data.progress}%">${data.progress}%</div>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="font-semibold mb-2">Темы по кодификатору:</h4>
+                        <div class="space-y-1">${topicsHtml}</div>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold mb-2">Ресурсы:</h4>
+                        <p class="text-sm p-4 bg-[#FDFBF5] rounded-md">${data.resources}</p>
+                    </div>
+                </div>
+            `;
+
+            egeContentArea.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', updateEgeProgress);
+            });
+        }
+        
+        function updateEgeProgress() {
+            const subject = this.dataset.subject;
+            const topicCount = egeData[subject].topics.length;
+            const checkedCount = egeContentArea.querySelectorAll(`input[data-subject="${subject}"]:checked`).length;
+            const newProgress = Math.round((checkedCount / topicCount) * 100);
+            
+            egeData[subject].progress = newProgress;
+            
+            const progressBar = document.getElementById(`progress-bar-${subject}`);
+            progressBar.style.width = `${newProgress}%`;
+            progressBar.textContent = `${newProgress}%`;
+            calculateOverallProgress();
+        }
+
+        function renderLanguageContent(language) {
+            const data = languagesData[language];
+            languagesContentArea.innerHTML = `
+                <div class="grid lg:grid-cols-2 gap-8 items-start">
+                    <div>
+                        <h3 class="text-xl font-semibold mb-1 text-[#6F6B5E]">${data.title}</h3>
+                        <div class="mb-4">
+                            <h4 class="font-semibold mb-1">Текущая цель:</h4>
+                            <div class="goal-input-group mb-2">
+                                <input type="text" id="language-goal-input" value="${data.goal}" class="flex-grow p-2 rounded-md border border-[#F0EAD2] bg-[#FDFBF5] placeholder:text-[#A09B8C]">
+                                <button id="language-goal-update-btn" class="bg-[#D4A373] hover:bg-[#c08d5c] text-white font-bold py-2 px-4 rounded-full transition-all duration-300">Сохранить</button>
+                            </div>
+                            <div class="mt-4">
+                                <h4 class="font-semibold mb-2">История целей:</h4>
+                                <ul id="language-goal-history" class="goal-chain text-sm text-[#383733]">
+                                    <!-- Goal history will be rendered here -->
+                                </ul>
+                            </div>
+                        </div>
+
+                        <h4 class="font-semibold mb-2 mt-6">Рекомендованные ресурсы:</h4>
+                        <p class="text-sm p-4 bg-[#FDFBF5] rounded-md">${data.resources}</p>
+                        
+                        <h4 class="font-semibold mb-2 mt-6">Прогресс-трекер</h4>
+                        <div class="flex items-center space-x-4">
+                            <div class="w-full bg-[#E9D8A6] rounded-full h-8 overflow-hidden">
+                                <div id="languageProgress" class="bg-[#D4A373] h-full text-center text-white font-bold transition-all duration-500 ease-in-out flex items-center justify-center" style="width: ${data.progress}%;">${data.progress}%</div>
+                            </div>
+                            <input type="number" id="languageInput" value="${data.progress}" class="w-20 px-2 py-1 text-center border border-[#F0EAD2] rounded-lg">
+                            <button id="languageUpdateBtn" class="bg-[#D4A373] hover:bg-[#c08d5c] text-white font-bold py-2 px-4 rounded-full transition-all duration-300">Обновить</button>
+                        </div>
+                        <div class="mt-8">
+                            <h4 class="font-semibold mb-2">Заметки</h4>
+                            <textarea id="languageNotes" class="w-full p-4 border-2 border-[#F0EAD2] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#D4A373] resize-y bg-[#FDFBF5]" rows="6" placeholder="Пишите здесь свои мысли о прогрессе, сложности и новых словах...">${data.notes}</textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold mb-2 text-center">Визуализация навыков</h4>
+                        <div class="chart-container h-64 md:h-80">
+                           <canvas id="language-chart-${language}"></canvas>
+                        </div>
+                        
+                        <!-- NEW: Skills Input Panel -->
+                        <div class="card p-4 mt-6 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-4" id="skills-input-panel">
+                            <!-- Input fields will be dynamically added here -->
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            createRadarChart(language, data.skills);
+            renderSkillsInput(language, data.skills);
+            updateGoalHistory(language);
+            
+            // Add event listener for the progress update button
+            const updateBtn = languagesContentArea.querySelector('#languageUpdateBtn');
+            const input = languagesContentArea.querySelector('#languageInput');
+            updateBtn.addEventListener('click', () => {
+                const value = parseInt(input.value, 10);
+                if (!isNaN(value) && value >= 0 && value <= 100) {
+                    data.progress = value;
+                    languagesContentArea.querySelector('#languageProgress').style.width = `${value}%`;
+                    languagesContentArea.querySelector('#languageProgress').textContent = `${value}%`;
+                    calculateOverallProgress();
+                } else {
+                    showModal('Пожалуйста, введите число от 0 до 100.');
+                }
+            });
+
+            // Add event listener for the goal update button
+            const goalUpdateBtn = languagesContentArea.querySelector('#language-goal-update-btn');
+            const goalInput = languagesContentArea.querySelector('#language-goal-input');
+            goalUpdateBtn.addEventListener('click', async () => {
+                const newGoal = goalInput.value.trim();
+                if (newGoal === '') {
+                    showModal('Цель не может быть пустой.');
+                    return;
+                }
+                if (newGoal === data.goal) {
+                    showModal('Вы уже установили эту цель.');
+                    return;
+                }
+                
+                languagesData[language].goal = newGoal;
+                await saveGoalToFirestore(language, newGoal);
+            });
+        }
+        
+        async function saveGoalToFirestore(language, goalText) {
+            if (!userId) {
+                showModal('Ошибка: не удалось определить пользователя. Попробуйте обновить страницу.');
+                return;
+            }
+            try {
+                const goalsCollection = collection(db, `artifacts/${__app_id}/users/${userId}/languageGoals`);
+                await addDoc(goalsCollection, {
+                    language: language,
+                    goal: goalText,
+                    timestamp: serverTimestamp()
+                });
+            } catch (e) {
+                console.error("Error adding goal: ", e);
+                showModal('Ошибка при сохранении цели. Пожалуйста, попробуйте снова.');
+            }
+        }
+        
+        function updateGoalHistory(language) {
+            if (!userId) return;
+            const historyList = document.getElementById('language-goal-history');
+            const goalsCollection = collection(db, `artifacts/${__app_id}/users/${userId}/languageGoals`);
+            const q = query(goalsCollection, orderBy("timestamp"));
+            
+            onSnapshot(q, (querySnapshot) => {
+                historyList.innerHTML = '';
+                const goalsForLang = querySnapshot.docs.filter(doc => doc.data().language === language);
+                if (goalsForLang.length === 0) {
+                    historyList.innerHTML = `<li class="text-[#A09B8C]">История целей пуста.</li>`;
+                } else {
+                    goalsForLang.forEach((doc) => {
+                        const data = doc.data();
+                        const date = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleDateString('ru-RU') : '';
+                        historyList.innerHTML += `<li>${data.goal} <span class="text-xs text-[#A09B8C]">(${date})</span></li>`;
+                    });
+                }
+            });
+        }
+
+        function createRadarChart(language, skillData) {
+            const chartId = `language-chart-${language}`;
+            const existingChart = charts[chartId];
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            const ctx = document.getElementById(chartId).getContext('2d');
+            const labels = Object.keys(skillData);
+            const data = Object.values(skillData);
+            
+            const newChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Уровень навыка',
+                        data: data,
+                        backgroundColor: 'rgba(212, 163, 115, 0.2)',
+                        borderColor: 'rgba(212, 163, 115, 1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgba(212, 163, 115, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(212, 163, 115, 1)'
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    scales: {
+                        r: {
+                            angleLines: { color: '#F0EAD2' },
+                            grid: { color: '#F0EAD2' },
+                            pointLabels: {
+                                color: '#6F6B5E',
+                                font: { size: 12 }
+                            },
+                            ticks: {
+                                color: '#A09B8C',
+                                backdropColor: '#FDFBF5',
+                                stepSize: 20
+                            },
+                            min: 0,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    },
+                }
+            });
+
+            charts[chartId] = newChart;
+        }
+
+        // NEW: Render input fields for each skill
+        function renderSkillsInput(language, skillData) {
+            const skillsPanel = document.getElementById('skills-input-panel');
+            skillsPanel.innerHTML = '';
+            
+            const skills = Object.keys(skillData);
+            skills.forEach(skill => {
+                const value = skillData[skill];
+                const skillElement = document.createElement('div');
+                skillElement.className = 'flex items-center space-x-2';
+                skillElement.innerHTML = `
+                    <label class="text-sm font-medium text-[#6F6B5E] min-w-[70px]">${skill}:</label>
+                    <input type="number" data-skill="${skill}" value="${value}" min="0" max="100" class="w-full p-2 text-center border border-[#F0EAD2] rounded-lg text-sm bg-[#FDFBF5]">
+                `;
+                skillsPanel.appendChild(skillElement);
+            });
+            
+            skillsPanel.querySelectorAll('input[type="number"]').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const skill = e.target.dataset.skill;
+                    let value = parseInt(e.target.value, 10);
+                    
+                    if (isNaN(value) || value < 0) {
+                        value = 0;
+                    } else if (value > 100) {
+                        value = 100;
+                    }
+
+                    // Update the data and the chart
+                    languagesData[language].skills[skill] = value;
+                    const chart = charts[`language-chart-${language}`];
+                    const skillIndex = Object.keys(languagesData[language].skills).indexOf(skill);
+                    if (chart && skillIndex !== -1) {
+                        chart.data.datasets[0].data[skillIndex] = value;
+                        chart.update();
+                    }
+                });
+            });
+        }
+
+        function createTimeDistributionChart() {
+            const chartId = 'time-distribution-chart';
+            if (charts[chartId]) {
+                charts[chartId].destroy();
+            }
+            const ctx = document.getElementById(chartId).getContext('2d');
+            charts[chartId] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Профильные ЕГЭ (Ист, Общ)', 'Французский язык', 'Обязательные ЕГЭ (Рус, Мат)', 'Другие языки'],
+                    datasets: [{
+                        data: [40, 30, 15, 15],
+                        backgroundColor: ['#D4A373', '#E9C46A', '#6F6B5E', '#A09B8C'],
+                        borderColor: '#FDFBF5',
+                        borderWidth: 4,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                             labels: {
+                                color: '#383733'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTimeAndCalendar() {
+            const now = new Date();
+            document.getElementById('local-time').textContent = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+            const today = now.getDate();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            document.getElementById('calendar-month-year').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+            const calendarGrid = document.getElementById('calendar-grid');
+            calendarGrid.innerHTML = '';
+            
+            const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            const startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Adjust for Monday start
+
+            for (let i = 0; i < startDay; i++) {
+                calendarGrid.innerHTML += '<div></div>';
+            }
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const isToday = day === today ? 'bg-[#D4A373] text-white rounded-full' : '';
+                calendarGrid.innerHTML += `<div class="p-1">${isToday ? `<span class="${isToday} h-6 w-6 flex items-center justify-center">${day}</span>` : day}</div>`;
+            }
+        }
+
+        navButtons.forEach(button => {
+            button.addEventListener('click', () => switchSection(button.dataset.section));
+        });
+
+        egeNavButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                egeNavButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                renderEgeContent(button.dataset.content);
+            });
+        });
+        
+        languagesNavButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                languagesNavButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                renderLanguageContent(button.dataset.content);
+            });
+        });
+
+        achievementForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const achievementText = achievementInput.value.trim();
+            if (achievementText === '' || !userId) {
+                return;
+            }
+
+            try {
+                const achievementsCollection = collection(db, `artifacts/${__app_id}/users/${userId}/achievements`);
+                await addDoc(achievementsCollection, {
+                    text: achievementText,
+                    timestamp: serverTimestamp()
+                });
+                achievementInput.value = '';
+            } catch (e) {
+                console.error("Error adding document: ", e);
+            }
+        });
+
+        // Games & Drawing Logic
+        function setupGamesAndDrawing() {
+            // === Drawing Pad Logic ===
+            drawingCtx.lineWidth = 4;
+            drawingCtx.lineCap = 'round';
+            drawingCtx.strokeStyle = 'black';
+            function draw(e) {
+                if (!isDrawing) return;
+                drawingCtx.beginPath();
+                drawingCtx.moveTo(lastX, lastY);
+                drawingCtx.lineTo(e.offsetX, e.offsetY);
+                drawingCtx.stroke();
+                [lastX, lastY] = [e.offsetX, e.offsetY];
+            }
+            drawingCanvas.addEventListener('mousedown', (e) => { isDrawing = true; [lastX, lastY] = [e.offsetX, e.offsetY]; });
+            drawingCanvas.addEventListener('mousemove', draw);
+            drawingCanvas.addEventListener('mouseup', () => isDrawing = false);
+            drawingCanvas.addEventListener('mouseout', () => isDrawing = false);
+            
+            colorButtons.forEach(button => {
+                button.addEventListener('click', () => { drawingCtx.strokeStyle = button.dataset.color; });
+            });
+            clearBtn.addEventListener('click', () => { drawingCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height); });
+
+            // === Snake Game Logic ===
+            const TILE_SIZE = 10;
+            const CANVAS_SIZE = 300;
+            const TILE_COUNT = CANVAS_SIZE / TILE_SIZE;
+            
+            function startGame() {
+                if (isSnakePlaying) return;
+                isSnakePlaying = true;
+                snake = [{ x: 15, y: 15 }];
+                food = generateFood();
+                score = 0;
+                direction = 'right';
+                snakeScoreEl.textContent = 'Очки: 0';
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, 100);
+            }
+            function generateFood() {
+                return { x: Math.floor(Math.random() * TILE_COUNT), y: Math.floor(Math.random() * TILE_COUNT) };
+            }
+            function gameLoop() {
+                if (!isSnakePlaying) return;
+                const head = { x: snake[0].x, y: snake[0].y };
+                switch (direction) {
+                    case 'up': head.y--; break;
+                    case 'down': head.y++; break;
+                    case 'left': head.x--; break;
+                    case 'right': head.x++; break;
+                }
+                snake.unshift(head);
+                if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT || checkCollision(head)) {
+                    endGame();
+                    return;
+                }
+                if (head.x === food.x && head.y === food.y) {
+                    score++;
+                    snakeScoreEl.textContent = `Очки: ${score}`;
+                    food = generateFood();
+                } else {
+                    snake.pop();
+                }
+                drawSnake();
+            }
+            function checkCollision(head) {
+                for (let i = 1; i < snake.length; i++) {
+                    if (head.x === snake[i].x && head.y === snake[i].y) { return true; }
+                }
+                return false;
+            }
+            function drawSnake() {
+                snakeCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                snake.forEach(segment => { snakeCtx.fillStyle = '#6F6B5E'; snakeCtx.fillRect(segment.x * TILE_SIZE, segment.y * TILE_SIZE, TILE_SIZE, TILE_SIZE); });
+                snakeCtx.fillStyle = '#D4A373'; snakeCtx.fillRect(food.x * TILE_SIZE, food.y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            }
+            function endGame() {
+                isSnakePlaying = false;
+                clearInterval(gameInterval);
+                showModal(`Игра окончена! Ваши очки: ${score}`);
+            }
+            window.addEventListener('keydown', e => {
+                const newDirection = e.key.replace('Arrow', '').toLowerCase();
+                if (isSnakePlaying) {
+                    if (newDirection === 'up' && direction !== 'down') direction = 'up';
+                    if (newDirection === 'down' && direction !== 'up') direction = 'down';
+                    if (newDirection === 'left' && direction !== 'right') direction = 'left';
+                    if (newDirection === 'right' && direction !== 'left') direction = 'right';
+                }
+            });
+            snakeStartBtn.addEventListener('click', startGame);
+        }
+
+        window.addEventListener('load', async () => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const firebaseConfig = JSON.parse(__firebase_config);
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            const app = window.initializeApp(firebaseConfig);
+            db = window.getFirestore(app);
+            auth = window.getAuth(app);
+            
+            try {
+                if (initialAuthToken) {
+                    await window.signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await window.signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase auth error:", error);
+            }
+
+            window.onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('user-id-display').textContent = `ID пользователя: ${userId}`;
+                    const achievementsCollection = collection(db, `artifacts/${appId}/users/${userId}/achievements`);
+                    const q = query(achievementsCollection, orderBy("timestamp", "desc"));
+
+                    onSnapshot(q, (querySnapshot) => {
+                        achievementsList.innerHTML = '';
+                        if (querySnapshot.empty) {
+                            achievementsList.innerHTML = `<p class="text-[#A09B8C]">У вас еще нет достижений. Добавьте первое!</p>`;
+                        } else {
+                            querySnapshot.forEach((doc) => {
+                                const data = doc.data();
+                                const date = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleDateString('ru-RU') : 'Сегодня';
+                                achievementsList.innerHTML += `
+                                    <div class="flex space-x-2">
+                                        <div class="flex-shrink-0 h-4 w-4 text-[#D4A373] text-center">🏆</div>
+                                        <div>
+                                            <p>${data.text}</p>
+                                            <p class="text-xs text-[#A09B8C]">${date}</p>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                        }
+                    });
+                } else {
+                    console.error("User is not signed in.");
+                }
+            });
+
+            switchSection('main');
+            renderEgeContent('history');
+            renderLanguageContent('french');
+            createTimeDistributionChart();
+            calculateOverallProgress();
+            setInterval(updateTimeAndCalendar, 1000);
+            updateTimeAndCalendar();
+            setupGamesAndDrawing();
+        });
+    </script>
+</body>
+</html>
